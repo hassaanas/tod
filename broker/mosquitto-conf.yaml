@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: tod
+data:
+  mosquitto.conf: |
+     # =================================================================
+     # General configuration for OBU broker
+     # =================================================================
+
+     listener 1883
+     persistence true
+     persistence_location /mosquitto/data/
+     allow_anonymous true
+
+     # =================================================================
+     # Broker Bridge configuration
+     # =================================================================
+     #     connection edge-broker
+     #     address 192.168.205.12:31883
+     #     topic set/# out

@@ -1,0 +1,28 @@
+# This Dockerfile is for ms-tod-app
+# Developed by Hassaan Siddiqui
+# Version 1.2.0
+
+# Use the official Python base image
+FROM python:3.11-slim
+
+# 1. Combine apt commands and cleanup in one layer
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    stress-ng \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Upgrade pip and install requirements
+RUN pip install --no-cache-dir --upgrade pip paho-mqtt
+
+# 3. Set working directory
+WORKDIR /home/tod
+
+# 4. Add the alias to .bashrc so it actually works when you log in
+RUN echo "alias ll='ls -laht'" >> /home/tod/.bashrc
+
+# Optional: Copy your application code, but here I am using K8s PVC for app code
+# COPY . .
+
+# 5. Define default command (Starts a bash shell by default)
+CMD ["bash"]
