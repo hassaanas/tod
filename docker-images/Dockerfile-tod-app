@@ -1,0 +1,23 @@
+# This Dockerfile is for ms-tod-app
+# Developed by Hassaan Siddiqui
+# Version 1.0.0
+
+# Use the official Python base image
+FROM python:3.11-slim
+
+# Ensure pip is installed and up to date
+RUN apt-get update && \
+    apt-get install -y python3-pip && \
+    pip install --upgrade pip
+
+# Install the paho-mqtt package
+RUN pip install paho-mqtt
+
+# Optional: Set a working directory
+WORKDIR /home/tod
+
+# Optional: Copy your application code
+# COPY . /app
+
+# Optional: Define default command
+# CMD ["python", "your_script.py"]
