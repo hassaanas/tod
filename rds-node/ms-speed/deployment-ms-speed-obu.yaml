@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-speed
+  namespace: tod
+  labels:
+    app: ms-speed-obu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ms-speed-obu
+  template:
+    metadata:
+      labels:
+        app: ms-speed-obu
+    spec:
+      volumes:
+        - name: ms-speed-code
+          persistentVolumeClaim:
+            claimName: pvc-tod-code
+      containers:
+      - image: localhost:5000/ms-tod-app:v1
+        imagePullPolicy: IfNotPresent
+        name: ms-speed
+        resources:
+          requests:
+            memory: "50Mi"
+            cpu: "0.5"
+          limits:
+            memory: "100Mi"
+            cpu: "1"
+        volumeMounts:
+        - name: ms-speed-code
+          mountPath: /home/tod
+        env:
+          - name: BROKERIP
+            valueFrom:
+              configMapKeyRef:
+                name: ms-ip
+                key: BROKERIP
+          - name: BROKERPORT
+            valueFrom:
+              configMapKeyRef:
+                name: ms-ip
+                key: BROKERPORT
+        args:
+          - "/bin/bash"
+          - "-c"
+          - |
+            #echo "Running app /home/tod/speed-obu.py";
+            #/home/tod/speed-obu.py;
+            while true; do echo sleeping; date; sleep 86400; done;

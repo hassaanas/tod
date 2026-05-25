@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ms-ip
+  namespace: tod
+data:
+  BROKERIP: "10.152.183.36"
+  BROKERPORT: "1883"
