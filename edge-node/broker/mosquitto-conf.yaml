@@ -5,18 +5,49 @@ metadata:
   namespace: tod
 data:
   mosquitto.conf: |
-     # =================================================================
-     # General configuration for OBU broker
-     # =================================================================
+    # =================================================================
+    # General configuration for Central Edge Broker
+    # =================================================================
+    listener 1883 0.0.0.0
+    allow_anonymous true
 
-     listener 1883
-     persistence true
-     persistence_location /mosquitto/data/
-     allow_anonymous true
+    persistence true
+    persistence_location /mosquitto/data/
 
-     # =================================================================
-     # Broker Bridge configuration
-     # =================================================================
-     #     connection edge-broker
-     #     address 192.168.205.12:31883
-     #     topic set/# out
+    # Bridge addresses use NodePort 31883 on OBU/RDS node LAN IPs.
+    # If bridges flap with "exceeded timeout" on remotes, enable hostNetwork
+    # on broker Deployments and change addresses to :1883 (see README).
+
+    # =================================================================
+    # Bridge Configuration to OBU
+    # =================================================================
+    connection obu
+    address 192.168.205.13:31883
+    local_clientid edge_central_to_obu
+    remote_clientid edge_to_obu
+    try_private false
+    cleansession true
+    keepalive_interval 30
+    restart_timeout 30
+    start_type automatic
+
+    # Traffic Routing for OBU
+    topic set/# out 0
+    topic get/# in 0
+
+    # =================================================================
+    # Bridge Configuration to RDS
+    # =================================================================
+    connection rds
+    address 192.168.205.77:31883
+    local_clientid edge_central_to_rds
+    remote_clientid edge_to_rds
+    try_private false
+    cleansession true
+    keepalive_interval 30
+    restart_timeout 30
+    start_type automatic
+
+    # Traffic Routing for RDS
+    topic get/# out 0
+    topic set/# in 0
