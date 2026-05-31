@@ -10,6 +10,106 @@ This paper explains the use case, architecture, and implementation. Please cite 
 
 ---
 
+## Testbed architecture
+
+The lab uses **four independent single-node MicroK8s clusters**, one VM per site. Each runs namespace **`tod`** with an MQTT broker and Python microservices.
+
+| Node | Role | Repo path | Example LAN IP |
+|------|------|-----------|----------------|
+| **Edge** | Central MQTT hub; bridges to OBU and RDS | `edge-node/` | `192.168.205.12` (hostname `edge`) |
+| **OBU** | On-board unit side | `obu-node/` | `192.168.205.13` (e.g. Raspberry Pi) |
+| **RDS** | Remote driving station | `rds-node/` | `192.168.205.77` |
+| **Cloud** | Cloud-side stack (same pattern) | `cloud-node/` | site-specific |
+
+Typical VM sizing: ~2 vCPU, 12–16 GiB RAM. MicroK8s addons: `dns`, `storage`, Calico CNI, CoreDNS.
+
+### MQTT topology (hub model)
+
+Only the **edge broker** initiates Mosquitto **bridges** to OBU and RDS. Remote brokers are plain listeners (no bridge back to edge).
+
+```
+  OBU broker (:31883 NodePort)  <---- bridge ----  EDGE broker (hub)  ---- bridge ---->  RDS broker (:31883)
+                                       (edge initiates both)
+```
+
+**Edge bridge topic routing** (live config on cluster; customize per site):
+
+| Bridge | To remote | From remote |
+|--------|-----------|-------------|
+| **obu** (`192.168.205.13:31883`) | `set/#` out | `get/#` in |
+| **rds** (`192.168.205.77:31883`) | `get/#` out | `set/#` in |
+
+Bridge client IDs: `edge_central_to_obu` / `edge_to_obu`, `edge_central_to_rds` / `edge_to_rds`.
+
+### Per-node stack
+
+- **Broker:** `eclipse-mosquitto`, ConfigMap `mosquitto-config`, Deployment, Service type **NodePort** (port 1883 → node **31883**)
+- **Microservices:** `ms-direction`, `ms-cruise`, `ms-speed` — image `localhost:5000/ms-tod-app:v1`, app code on PVC/hostPath
+- **Registry:** Docker registry on `:5000` (often on RDS); MicroK8s pulls via `certs.d/localhost:5000/hosts.toml`
+
+Kubernetes pod network on edge uses internal IP **`10.0.2.15`**; remote brokers may see bridge connections from that address (NodePort SNAT) rather than the edge LAN IP.
+
+---
+
+## Known issue: edge broker bridge flapping
+
+### Symptoms
+
+- **Edge broker logs:** bridges connect to OBU/RDS, then disconnect every ~60–90s (`connection closed by client`), reconnect with backoff
+- **OBU/RDS broker logs:** `Client edge_to_obu` / `edge_to_rds` disconnected: **`exceeded timeout`**; connect line shows **`k60`** (60s MQTT keepalive)
+- **Edge VM:** elevated CPU/load while bridges reconnect (containerd-shim / broker churn)
+- Timestamps align: remote **`exceeded timeout`** at the same second as edge **`closed by client`** — the **remote broker** closes the session for missing keepalive pings
+
+This is **not** caused by reverse bridges on OBU/RDS (they correctly have no `connection` blocks to edge).
+
+### Root cause
+
+MQTT **keepalive pings** from the edge bridge are not reliably reaching OBU/RDS when the path goes through **Kubernetes NodePort (`:31883`)** and kube-proxy SNAT/conntrack. With no traffic, the remote broker drops the session after ~90s (1.5 × keepalive 60).
+
+Adding to the edge ConfigMap:
+
+```conf
+keepalive_interval 30
+restart_timeout 30
+start_type automatic
+```
+
+(on both `connection obu` and `connection rds`) may not fully fix the issue if pings are still lost on the NodePort path; remotes may continue to show **`k60`** and **`exceeded timeout`**.
+
+Port **1883** on OBU/RDS **LAN IPs is not exposed** by default (broker listens inside the pod). From the edge host:
+
+```bash
+nc -zv 192.168.205.13 31883   # works (NodePort)
+nc -zv 192.168.205.13 1883    # connection refused (expected without hostNetwork)
+```
+
+### Recommended fix
+
+1. Confirm the edge broker pod is **Running** and config is mounted:
+   ```bash
+   microk8s kubectl exec -n tod deploy/broker -- grep keepalive /mosquitto/config/mosquitto.conf
+   ```
+2. Enable **`hostNetwork: true`** on broker Deployments on OBU, RDS, and optionally edge:
+   ```yaml
+   spec:
+     template:
+       spec:
+         hostNetwork: true
+         dnsPolicy: ClusterFirstWithHostNet
+   ```
+3. Point edge bridges at **node LAN IP + 1883** (not NodePort):
+   ```conf
+   address 192.168.205.13:1883   # obu
+   address 192.168.205.77:1883   # rds
+   ```
+4. Verify: OBU/RDS logs show long-lived connections with **no** repeating `exceeded timeout` for several minutes.
+
+### Related: edge VM slowness
+
+After MicroK8s recovery, edge may show **very high load average** (e.g. 30+) with kubelite/k8s-dqlite busy and `kubectl` timeouts, even when `kubectl get nodes` shows **Ready**. RAM/disk are usually fine. Load typically drops after control plane stabilizes; stopping **Docker** on edge (if registry/build runs elsewhere) reduces contention with MicroK8s.
+
+---
+
 ## Prerequisites (edge node example)
 
 - [MicroK8s](https://microk8s.io/) (single-node cluster)
