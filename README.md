@@ -2,6 +2,8 @@
 
 Tele-operated Driving (ToD) use case implementation. Microservices are developed in Python and deployed on Kubernetes (k8s) clusters. Four single-node k8s clusters are used: **edge**, **cloud**, **RDS**, and **OBU** (see directories `edge-node/`, `cloud-node/`, `rds-node/`, `obu-node/`).
 
+**Edge setup (fresh VM):** step-by-step guide in [edge-node/edge-stack-deploy.md](edge-node/edge-stack-deploy.md).
+
 ## Reference
 
 H. Siddiqui and F. Khendek, *Microservices for Reliable Safety-Critical Cellular IoT Systems — A Case Study*, in GLOBECOM 2024 - 2024 IEEE Global Communications Conference, Dec. 2024, pp. 1455–1460. doi: [10.1109/GLOBECOM52923.2024.10901455](https://doi.org/10.1109/GLOBECOM52923.2024.10901455)
@@ -204,6 +206,8 @@ To use a new tag, update `image:` in the deployment YAML under each node directo
 
 ## Edge stack deployment
 
+Full procedure (MicroK8s, registry, build, deploy): [edge-node/edge-stack-deploy.md](edge-node/edge-stack-deploy.md).
+
 All edge resources use namespace **`tod`**. Apply in order so storage and the broker exist before microservices.
 
 ```bash
@@ -314,6 +318,7 @@ A Helm chart is useful if you deploy many edge nodes or want `helm upgrade` / `h
 | Path | Purpose |
 |------|---------|
 | `edge-node/` | Edge broker, microservices, storage |
+| `edge-node/edge-stack-deploy.md` | Step-by-step edge VM setup and deploy |
 | `cloud-node/` | Cloud-side stack |
 | `rds-node/` | RDS stack |
 | `obu-node/` | OBU stack |
