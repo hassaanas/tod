@@ -281,9 +281,9 @@ MicroK8s uses its own containerd; the registry container stops with Docker. Star
 | `ms-direction/`, `ms-cruise/`, `ms-speed/` | Microservice deployments |
 
 
-## VM Netowrking
-The following should be content of /etc/netplan/<file>
-network:
+## VM Networking
+The following should be content of `/etc/netplan/50-cloud-init.yaml`
+```network:
   version: 2
   ethernets:
     enp0s3:
@@ -297,4 +297,5 @@ network:
       routes:
         - to: default
           via: 192.168.205.1
-
+```
+Then do `sudo netplan apply`
