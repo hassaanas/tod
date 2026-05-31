@@ -279,3 +279,23 @@ MicroK8s uses its own containerd; the registry container stops with Docker. Star
 | `broker/service-broker.yaml` | NodePort 31883 |
 | `ms-speed/cm-ms-IPs.yaml` | Broker IP/port for microservices |
 | `ms-direction/`, `ms-cruise/`, `ms-speed/` | Microservice deployments |
+
+
+## VM Networking
+The following should be content of `/etc/netplan/50-cloud-init.yaml`
+```network:
+  version: 2
+  ethernets:
+    enp0s3:
+      dhcp4: true
+      dhcp4-overrides:
+        use-routes: false
+    enp0s8:
+      dhcp4: false
+      addresses:
+        - 192.168.205.76/24
+      routes:
+        - to: default
+          via: 192.168.205.1
+```
+Then do `sudo netplan apply`
