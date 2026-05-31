@@ -4,20 +4,20 @@ metadata:
   name: broker
   namespace: tod
   labels:
-    app: broker-rds
+    app: broker-edge
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: broker-rds
+      app: broker-edge
   template:
     metadata:
       labels:
-        app: broker-rds
+        app: broker-edge
     spec:
       containers:
-        #      - image: localhost:5000/mqtt-broker:latest
-      - image: eclipse-mosquitto:latest
+      - image: localhost:5000/mqtt-broker:v1
+        #      - image: eclipse-mosquitto:latest
         name: broker
         resources:
           requests:
