@@ -1,6 +1,8 @@
 # Edge stack deployment
 
-Step-by-step setup for a **fresh edge VM**: MicroK8s, local Docker registry, build/push `ms-tod-app`, and deploy the edge stack from this directory.
+Step-by-step setup for a **fresh edge VM**: MicroK8s, local Docker registry, broker image, and deploy the edge stack from this directory.
+
+The **primary role of the edge node is the central MQTT broker** (bridges to OBU and RDS). Microservices on edge are optional.
 
 ## Assumptions
 
@@ -46,8 +48,6 @@ microk8s kubectl get nodes   # edge should be Ready
 
 ## 3. Local Docker registry (`localhost:5000`)
 
-Microservice deployments use image **`localhost:5000/ms-tod-app:v1`**.
-
 ```bash
 docker run -d -p 5000:5000 --restart=always --name registry registry:2
 
@@ -91,7 +91,33 @@ sudo snap logs microk8s.daemon-containerd -n 15 | grep -i cri
 
 ---
 
-## 5. Build and push `ms-tod-app`
+## 5. Build and push broker image
+
+Promote **Eclipse Mosquitto** to the local registry as **`localhost:5000/mqtt-broker:latest`**.
+
+```bash
+docker pull eclipse-mosquitto:latest
+
+docker tag eclipse-mosquitto:latest localhost:5000/mqtt-broker:v1
+docker push localhost:5000/mqtt-broker:v1
+
+curl -s http://localhost:5000/v2/mqtt-broker/tags/list
+```
+
+In `broker/deployment-broker-mem-limit.yaml`, use the local image (uncomment registry line, comment Hub line if present):
+
+```yaml
+- image: localhost:5000/mqtt-broker:v1
+# - image: eclipse-mosquitto:latest
+```
+
+Alternatively, skip the registry and pull **`eclipse-mosquitto:latest`** from Docker Hub directly in the deployment (no push step).
+
+---
+
+## 6. Build and push `ms-tod-app` (optional)
+
+Only needed if you deploy **microservices** on edge (`ms-direction`, `ms-cruise`, `ms-speed`). Skip this section for **broker-only** edge.
 
 From the repository root:
 
@@ -112,24 +138,9 @@ Application code is mounted at runtime via PVC; it is not baked into the image.
 
 ---
 
-## 6. Pre-deploy edits
+## 7. Pre-deploy edits
 
-### A. App code hostPath
-
-Edit `ms-speed/pv-tod-code.yaml` — set `hostPath.path` to where ToD app code lives on the edge host:
-
-```yaml
-hostPath:
-  path: "/home/hassaan/tod/tod-code"   # adjust user/path
-```
-
-Create the directory and place (or symlink) the `tod-code` tree:
-
-```bash
-mkdir -p ~/tod/tod-code
-```
-
-### B. MQTT bridge addresses
+### A. MQTT bridge addresses
 
 Edit `broker/mosquitto-conf.yaml` if OBU/RDS LAN IPs differ from:
 
@@ -145,9 +156,22 @@ Bridge topic routing (edge hub):
 
 See repo [README.md](../README.md) for MQTT topology and known bridge issues.
 
+### B. App code hostPath (optional — microservices only)
+
+If deploying microservices, edit `ms-speed/pv-tod-code.yaml`:
+
+```yaml
+hostPath:
+  path: "/home/hassaan/tod/tod-code"   # adjust user/path
+```
+
+```bash
+mkdir -p ~/tod/tod-code
+```
+
 ---
 
-## 7. Deploy edge stack
+## 8. Deploy edge stack
 
 Run from **`edge-node/`**:
 
@@ -156,20 +180,23 @@ cd ~/repos/tod/edge-node
 
 microk8s kubectl create namespace tod
 
-# Storage
+# MQTT broker (required)
+microk8s kubectl apply -f broker/mosquitto-conf.yaml
+microk8s kubectl apply -f broker/deployment-broker-mem-limit.yaml
+microk8s kubectl apply -f broker/service-broker.yaml
+```
+
+**Broker only** — stop here and verify (step 10).
+
+**Full stack (optional microservices)** — also apply:
+
+```bash
 microk8s kubectl apply -f storageclass/storageclass-local.yaml
 microk8s kubectl apply -f ms-speed/pv-tod-code.yaml
 microk8s kubectl apply -f ms-speed/pvc-ms-speed.yaml
 
-# MQTT broker
-microk8s kubectl apply -f broker/mosquitto-conf.yaml
-microk8s kubectl apply -f broker/deployment-broker-mem-limit.yaml
-microk8s kubectl apply -f broker/service-broker.yaml
-
-# Broker IP for microservices (update in step 8)
 microk8s kubectl apply -f ms-speed/cm-ms-IPs.yaml
 
-# Microservices
 microk8s kubectl apply -f ms-direction/deployment-ms-direction.yaml
 microk8s kubectl apply -f ms-cruise/deployment-ms-cruise.yaml
 microk8s kubectl apply -f ms-speed/deployment-ms-speed-obu.yaml
@@ -181,13 +208,13 @@ Check status:
 microk8s kubectl get pods,svc -n tod
 ```
 
-All pods should reach **Running**.
+Broker pod should be **Running**; microservice pods **Running** only if you applied step 6 and the optional manifests above.
 
 ---
 
-## 8. Configure microservice broker IP
+## 9. Configure microservice broker IP (optional)
 
-Microservices read broker address from ConfigMap `ms-ip`:
+Only if microservices are deployed. They read broker address from ConfigMap `ms-ip`:
 
 ```bash
 microk8s kubectl get svc broker -n tod
@@ -202,7 +229,7 @@ microk8s kubectl rollout restart deployment -n tod ms-direction ms-cruise ms-spe
 
 ---
 
-## 9. Verify broker and bridges
+## 10. Verify broker and bridges
 
 ```bash
 microk8s kubectl logs -n tod deploy/broker --tail=30
@@ -221,7 +248,7 @@ alias kg='microk8s kubectl get'
 
 ---
 
-## 10. Bridge flapping (known issue)
+## 11. Bridge flapping (known issue)
 
 If OBU/RDS logs show `exceeded timeout` every ~60–90s for `edge_to_obu` / `edge_to_rds`, MQTT keepalive is likely lost over **NodePort (`:31883`)**.
 
@@ -249,15 +276,16 @@ Full details: [README.md — Known issue: edge broker bridge flapping](../README
 | MicroK8s | `kubectl get nodes` → edge **Ready** |
 | Registry | `curl localhost:5000/v2/_catalog` succeeds |
 | containerd | No CRI plugin errors in snap logs |
-| Image | `ms-tod-app:v1` listed in registry tags |
-| Stack | All pods **Running** in namespace `tod` |
-| ConfigMap | `ms-ip` **BROKERIP** = broker ClusterIP |
+| Broker image | `mqtt-broker:latest` in registry (or Hub image in deployment) |
+| Broker pod | **Running** in namespace `tod` |
+| ms-tod-app (optional) | `ms-tod-app:v1` in registry, if using edge microservices |
+| ConfigMap (optional) | `ms-ip` **BROKERIP** = broker ClusterIP |
 
 ---
 
 ## Optional: reduce CPU on edge
 
-After building and pushing the image, you can stop Docker if you do not rebuild often on edge:
+After building and pushing images, you can stop Docker if you do not rebuild often on edge:
 
 ```bash
 sudo snap stop docker
@@ -271,11 +299,11 @@ MicroK8s uses its own containerd; the registry container stops with Docker. Star
 
 | Path | Purpose |
 |------|---------|
-| `storageclass/storageclass-local.yaml` | Local storage class |
-| `ms-speed/pv-tod-code.yaml` | PV for app code (hostPath) |
-| `ms-speed/pvc-ms-speed.yaml` | PVC bound to PV |
 | `broker/mosquitto-conf.yaml` | Central edge broker + OBU/RDS bridges |
 | `broker/deployment-broker-mem-limit.yaml` | Mosquitto deployment |
 | `broker/service-broker.yaml` | NodePort 31883 |
+| `storageclass/storageclass-local.yaml` | Local storage class (microservices) |
+| `ms-speed/pv-tod-code.yaml` | PV for app code (microservices) |
+| `ms-speed/pvc-ms-speed.yaml` | PVC bound to PV (microservices) |
 | `ms-speed/cm-ms-IPs.yaml` | Broker IP/port for microservices |
-| `ms-direction/`, `ms-cruise/`, `ms-speed/` | Microservice deployments |
+| `ms-direction/`, `ms-cruise/`, `ms-speed/` | Microservice deployments (optional) |
