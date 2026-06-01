@@ -4,12 +4,12 @@ metadata:
   name: broker
   namespace: tod
   labels:
-    app: broker-rds
+    app: broker-edge
 spec:
   ports:
     - port: 1883
       targetPort: 1883
       nodePort: 31883
   selector:
-    app: broker-rds
+    app: broker-edge
   type: NodePort

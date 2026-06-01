@@ -6,7 +6,7 @@ metadata:
 data:
   mosquitto.conf: |
      # =================================================================
-     # General configuration for OBU broker
+     # General configuration for RDS broker
      # =================================================================
 
      listener 1883
@@ -14,9 +14,5 @@ data:
      persistence_location /mosquitto/data/
      allow_anonymous true
 
-     # =================================================================
-     # Broker Bridge configuration
-     # =================================================================
-     #     connection edge-broker
-     #     address 192.168.205.12:31883
-     #     topic set/# out
+     # NOTE: No bridge connections are defined here. 
+     # The Central broker connects to this instance externally.

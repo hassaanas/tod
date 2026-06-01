@@ -16,8 +16,8 @@ spec:
         app: broker-rds
     spec:
       containers:
-        #      - image: localhost:5000/mqtt-broker:latest
-      - image: eclipse-mosquitto:latest
+      - image: localhost:5000/mqtt-broker:latest
+        #      - image: eclipse-mosquitto:latest
         name: broker
         resources:
           requests:
