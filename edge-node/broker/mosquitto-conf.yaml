@@ -15,6 +15,7 @@ data:
     persistence_location /mosquitto/data/
 
     # Bridge addresses use NodePort 31883 on OBU/RDS node LAN IPs.
+    # Standby broker uses mosquitto-config-standby (clientids *_b) for overlap.
     # If bridges flap with "exceeded timeout" on remotes, enable hostNetwork
     # on broker Deployments and change addresses to :1883 (see README).
 

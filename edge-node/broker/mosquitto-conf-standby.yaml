@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config-standby
+  namespace: tod
+data:
+  mosquitto.conf: |
+    # =================================================================
+    # Standby edge broker — same bridge topology as primary, distinct
+    # clientids so both can relay in parallel during overlap (QoS 0).
+    # =================================================================
+    listener 1883 0.0.0.0
+    allow_anonymous true
+
+    persistence true
+    persistence_location /mosquitto/data/
+
+    # =================================================================
+    # Bridge Configuration to OBU
+    # =================================================================
+    connection obu
+    address 192.168.205.13:31883
+    local_clientid edge_central_to_obu_b
+    remote_clientid edge_to_obu_b
+    try_private false
+    cleansession true
+    keepalive_interval 30
+    restart_timeout 30
+    start_type automatic
+
+    topic set/# out 0
+    topic get/# in 0
+
+    # =================================================================
+    # Bridge Configuration to RDS
+    # =================================================================
+    connection rds
+    address 192.168.205.77:31883
+    local_clientid edge_central_to_rds_b
+    remote_clientid edge_to_rds_b
+    try_private false
+    cleansession true
+    keepalive_interval 30
+    restart_timeout 30
+    start_type automatic
+
+    topic get/# out 0
+    topic set/# in 0

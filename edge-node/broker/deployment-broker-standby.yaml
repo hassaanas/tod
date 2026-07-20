@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broker-standby
+  namespace: tod
+  labels:
+    app: broker-rds
+    broker-role: standby
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: broker-rds
+      broker-role: standby
+  template:
+    metadata:
+      labels:
+        app: broker-rds
+        broker-role: standby
+    spec:
+      containers:
+      - image: eclipse-mosquitto:latest
+        name: broker
+        resources:
+          requests:
+            memory: "50Mi"
+            cpu: "0.5"
+          limits:
+            memory: "100Mi"
+            cpu: "1"
+        ports:
+        - containerPort: 1883
+        volumeMounts:
+        - name: mosquitto-config
+          mountPath: /mosquitto/config/
+      volumes:
+      - name: mosquitto-config
+        configMap:
+          name: mosquitto-config-standby
