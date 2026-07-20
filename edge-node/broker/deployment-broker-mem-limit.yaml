@@ -5,15 +5,18 @@ metadata:
   namespace: tod
   labels:
     app: broker-edge
+    broker-role: primary
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: broker-edge
+      broker-role: primary
   template:
     metadata:
       labels:
         app: broker-edge
+        broker-role: primary
     spec:
       containers:
       - image: localhost:5000/mqtt-broker:v1
